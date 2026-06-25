@@ -1,0 +1,57 @@
+name: QForge JMeter Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      test_name:
+        description: "Optional JMeter test plan name without .jmx"
+        required: false
+        default: "customer-search-load"
+      threads:
+        description: "Virtual users"
+        required: false
+        default: "2"
+      rampup:
+        description: "Ramp-up seconds"
+        required: false
+        default: "2"
+      loops:
+        description: "Iterations per user"
+        required: false
+        default: "2"
+  push:
+    branches: [main]
+
+jobs:
+  jmeter-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Run JMeter tests
+        run: |
+          TEST_PLAN="${{ github.event.inputs.test_name }}"
+          if [ -z "$TEST_PLAN" ]; then
+            TEST_PLAN="customer-search-load"
+          fi
+          mvn -B verify \
+            "-Djmeter.testPlan=$TEST_PLAN" \
+            "-Dthreads=${{ github.event.inputs.threads || '2' }}" \
+            "-Drampup=${{ github.event.inputs.rampup || '2' }}" \
+            "-Dloops=${{ github.event.inputs.loops || '2' }}"
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qforge-jmeter-reports
+          path: |
+            target/jmeter/results/**
+            target/jmeter/reports/**
